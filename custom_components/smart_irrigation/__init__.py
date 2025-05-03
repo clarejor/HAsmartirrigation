@@ -290,6 +290,7 @@ class SmartIrrigationCoordinator(DataUpdateCoordinator):
         self._track_auto_clear_time_unsub = None
         self._track_sunrise_event_unsub = None
         self._track_midnight_time_unsub = None
+        self._debounced_update_cancel = None
         # set up auto calc time and auto update time from data
         the_config = self.store.async_get_config()
         the_config[const.CONF_USE_WEATHER_SERVICE] = self.use_weather_service
@@ -467,6 +468,8 @@ class SmartIrrigationCoordinator(DataUpdateCoordinator):
         self, event: Event[EventStateChangedData]
     ) -> None:  # old signature: entity, old_state, new_state):
         """Callback fired when a sensor state has changed."""
+        timestamp = datetime.datetime.now()
+
         # old_state_obj = event.data["old_state"]
         new_state_obj = event.data["new_state"]
         entity = event.data["entity_id"]
@@ -481,6 +484,14 @@ class SmartIrrigationCoordinator(DataUpdateCoordinator):
             _LOGGER.debug(
                 f"[async_sensor_state_changed]: new state for {entity} is {new_state_obj.state}"
             )
+        
+        # get sensor debounce time from config
+        the_config = self.store.async_get_config()
+        if the_config[const.CONF_SENSOR_DEBOUNCE]:
+            debounce = the_config[const.CONF_SENSOR_DEBOUNCE]
+            _LOGGER.debug(
+                f"[async_sensor_state_changed]: sensor debounce is {debounce} ms"
+            )
 
         # get the mapping that uses this sensor
         mappings = self.store.get_mappings()
@@ -488,176 +499,205 @@ class SmartIrrigationCoordinator(DataUpdateCoordinator):
             if mapping.get(const.MAPPING_MAPPINGS):
                 for key, val in mapping.get(const.MAPPING_MAPPINGS).items():
                     if (
-                        not isinstance(val, str)
-                        and val.get(const.MAPPING_CONF_SENSOR) == entity
-                        or val.get(const.MAPPING_CONF_SOURCE)
+                        isinstance(val, str)
+                        or val.get(const.MAPPING_CONF_SENSOR) != entity
+                        and val.get(const.MAPPING_CONF_SOURCE)
+                        != const.MAPPING_CONF_SOURCE_STATIC_VALUE
+                    ):
+                        continue
+
+                    the_new_state = new_state_obj.state
+                    if (
+                        val.get(const.MAPPING_CONF_SOURCE)
                         == const.MAPPING_CONF_SOURCE_STATIC_VALUE
                     ):
-                        the_new_state = new_state_obj.state
-                        if (
-                            val.get(const.MAPPING_CONF_SOURCE)
-                            == const.MAPPING_CONF_SOURCE_STATIC_VALUE
-                        ):
-                            the_new_state = val.get(const.MAPPING_CONF_STATIC_VALUE)
-                        # add the mapping data with the new sensor value
-                        if the_new_state is not None:
-                            if const.MAPPING_DATA in mapping:
-                                mapping_data = mapping.get(const.MAPPING_DATA)
-                            else:
-                                mapping_data = []
-                            # val = convert_mapping_to_metric(
-                            #    val,
-                            #    key,
-                            #    the_map.get(const.MAPPING_CONF_UNIT),
-                            #    self.hass.config.units is METRIC_SYSTEM,
-                            # )
-                            # conversion to metric
-                            mapping_data.append(
-                                {
-                                    key: convert_mapping_to_metric(
-                                        float(the_new_state),
-                                        key,
-                                        mapping.get(const.MAPPING_CONF_UNIT),
-                                        self.hass.config.units is METRIC_SYSTEM,
-                                    ),
-                                    const.RETRIEVED_AT: datetime.datetime.now(),
-                                }
-                            )
-                            # store the value in the last entry
-                            data_last_entry = mapping.get(const.MAPPING_DATA_LAST_ENTRY)
-                            if data_last_entry is None or len(data_last_entry) == 0:
-                                data_last_entry = {}
-                            if isinstance(data_last_entry, list):
-                                data_last_entry = convert_list_to_dict(data_last_entry)
-                            data_last_entry[key] = mapping_data[-1][key]
-                            changes = {
-                                const.MAPPING_DATA: mapping_data,
-                                const.MAPPING_DATA_LAST_UPDATED: datetime.datetime.now(),
-                                const.MAPPING_DATA_LAST_ENTRY: data_last_entry,
-                            }
-                            self.store.async_update_mapping(
-                                mapping.get(const.MAPPING_ID), changes
-                            )
-                            _LOGGER.debug(
-                                f"[async_sensor_state_changed]: updated sensor group {mapping.get(const.MAPPING_ID)} {key}."
-                            )
-            await self.async_continuous_update_for_mapping(
-                mapping.get(const.MAPPING_ID)
-            )
+                        the_new_state = val.get(const.MAPPING_CONF_STATIC_VALUE)
+                    # add the mapping data with the new sensor value
+                    if the_new_state is None: continue
+
+                    if const.MAPPING_DATA in mapping:
+                        mapping_data = mapping.get(const.MAPPING_DATA)
+                    else:
+                        mapping_data = []
+                    # val = convert_mapping_to_metric(
+                    #    val,
+                    #    key,
+                    #    the_map.get(const.MAPPING_CONF_UNIT),
+                    #    self.hass.config.units is METRIC_SYSTEM,
+                    # )
+                    # conversion to metric
+                    mapping_data.append(
+                        {
+                            key: convert_mapping_to_metric(
+                                float(the_new_state),
+                                key,
+                                mapping.get(const.MAPPING_CONF_UNIT),
+                                self.hass.config.units is METRIC_SYSTEM,
+                            ),
+                            const.RETRIEVED_AT: timestamp,
+                        }
+                    )
+                    # store the value in the last entry
+                    data_last_entry = mapping.get(const.MAPPING_DATA_LAST_ENTRY)
+                    if data_last_entry is None or len(data_last_entry) == 0:
+                        data_last_entry = {}
+                    if isinstance(data_last_entry, list):
+                        data_last_entry = convert_list_to_dict(data_last_entry)
+                    data_last_entry[key] = mapping_data[-1][key]
+                    changes = {
+                        const.MAPPING_DATA: mapping_data,
+                        const.MAPPING_DATA_LAST_UPDATED: timestamp,
+                        const.MAPPING_DATA_LAST_ENTRY: data_last_entry,
+                    }
+                    self.store.async_update_mapping(
+                        mapping.get(const.MAPPING_ID), changes
+                    )
+                    _LOGGER.debug(
+                        f"[async_sensor_state_changed]: updated sensor group {mapping.get(const.MAPPING_ID)} {key}."
+                    )
+            
+            mapping_id = mapping.get(const.MAPPING_ID)
+            if debounce > 0:
+                # Cancel any previously scheduled update
+                if self._debounced_update_cancel:
+                    _LOGGER.debug("[async_sensor_state_changed]: cancelling previously scheduled update")
+                    self._debounced_update_cancel()
+                
+                # Schedule the update
+                _LOGGER.debug(f"[async_sensor_state_changed]: scheduling update in {debounce} ms")
+                self._debounced_update_cancel = async_call_later(
+                    self.hass,
+                    timedelta(milliseconds=debounce),
+                    # This callback may run off-loop, so use call_soon_threadsafe
+                    lambda now, mid=mapping_id: self.hass.loop.call_soon_threadsafe(
+                        self.hass.async_create_task,
+                        self.async_continuous_update_for_mapping(mid)
+                    )
+                )
+            else:
+                _LOGGER.debug("[async_sensor_state_changed]: no debounce, doing update now")
+                await self.async_continuous_update_for_mapping(mapping_id)
 
     async def async_continuous_update_for_mapping(self, mapping_id):
-        """First, check is mapping doesn't use a Weather Service (to avoid API overload). Then perform update and calculate for all automatic zones that use this mapping, assuming their modules do not use forecasting."""
-        if mapping_id is not None:
-            mapping = self.store.get_mapping(mapping_id)
-            if mapping is not None:
-                if not self.check_mapping_sources(mapping_id)[0]:
-                    # mapping does not use Weather Service
-                    zones = self._get_zones_that_use_this_mapping(mapping_id)
-                    zones_to_calculate = []
-                    for z in zones:
-                        zones_to_calculate.append(z)
-                        zone = self.store.get_zone(z)
-                        if (
-                            zone is not None
-                            and zone.get(const.ZONE_STATE) == const.ZONE_STATE_AUTOMATIC
-                        ):
-                            if zone.get(const.ZONE_MODULE) is not None:
-                                # check the module is not pyeto or if it is, that it does not use forecasting
-                                mod = self.store.get_module(zone.get(const.ZONE_MODULE))
-                                if mod is not None:
-                                    can_calculate = False
-                                    if mod.get(const.MODULE_NAME) != "PyETO":
-                                        can_calculate = True
-                                        _LOGGER.info(
-                                            f"[async_continuous_update_for_mapping]: module is not PyETO, so we can calculate for zone {zone.get(const.ZONE_ID)}."
-                                        )
-                                    else:
-                                        # module is PyETO. Check the config for forecast days == 0
-                                        _LOGGER.debug(
-                                            "[async_continuous_update_for_mapping]: module is PyETO, checking config."
-                                        )
-                                        if mod.get(const.MODULE_CONFIG):
-                                            _LOGGER.debug(
-                                                f"[async_continuous_update_for_mapping]: module has config: {mod.get(const.MODULE_CONFIG)}"
-                                            )
-                                            _LOGGER.debug(
-                                                f"[async_continuous_update_for_mapping]: mod.get(forecast_days,0) returns forecast_days: {mod.get(const.MODULE_CONFIG).get(const.CONF_PYETO_FORECAST_DAYS, 0)}"
-                                            )
-                                            # there is a config on the module, so let's check it
-                                            if (
-                                                mod.get(const.MODULE_CONFIG).get(
-                                                    const.CONF_PYETO_FORECAST_DAYS, 0
-                                                )
-                                                == 0
-                                                or mod.get(const.MODULE_CONFIG).get(
-                                                    const.CONF_PYETO_FORECAST_DAYS
-                                                )
-                                                == "0"
-                                                or mod.get(const.MODULE_CONFIG).get(
-                                                    const.CONF_PYETO_FORECAST_DAYS
-                                                )
-                                                is None
-                                            ):
-                                                can_calculate = True
-                                                _LOGGER.info(
-                                                    f"checked config for PyETO module on zone {zone.get(const.ZONE_ID)}, forecast_days==0 or None, so we can calculate."
-                                                )
-                                            else:
-                                                _LOGGER.info(
-                                                    f"checked config for PyETO module on zone {zone.get(const.ZONE_ID)}, forecast_days>0, skipping to avoid API calls that can incur costs."
-                                                )
-                                        else:
-                                            # default config for pyeto is forecast = 0, since there is no config we can calculate
-                                            can_calculate = True
-                                            _LOGGER.info(
-                                                f"no config on PyETO module, since default is forecast_days==0, we can calculate for zone {zone.get(const.ZONE_ID)}."
-                                            )
+        self._debounced_update_cancel = None
 
-                                    _LOGGER.debug(
-                                        f"[async_continuous_update_for_mapping]: can_calculate: {can_calculate}"
-                                    )
-                                    if can_calculate:
-                                        # get the zone and calculate
-                                        _LOGGER.debug(
-                                            f"[async_continuous_update_for_mapping] for sensor group {mapping_id}: calculating zone {zone.get(const.ZONE_ID)}"
-                                        )
-                                        await self.async_calculate_zone(
-                                            z,
-                                            continuous_updates=True,
-                                        )
-                                        zones_to_calculate.remove(z)
-                                    else:
-                                        _LOGGER.info(
-                                            f"[async_continuous_update_for_mapping] for sensor group {mapping_id}: zone {z} has module {mod.get(const.MODULE_NAME)} that uses forecasting, skipping to avoid API calls that can incur costs."
-                                        )
-                            else:
-                                _LOGGER.info(
-                                    f"[async_continuous_update_for_mapping] for sensor group {mapping_id}: zone {z} has no module, skipping."
-                                )
-                        else:
-                            _LOGGER.info(
-                                f"[async_continuous_update_for_mapping] for sensor group {mapping_id}: zone {z} is not automatic, skipping."
-                            )
-                    # remove weather data from this mapping unless there are zones we did not calculate!
+        """First, check is mapping doesn't use a Weather Service (to avoid API overload). Then perform update and calculate for all automatic zones that use this mapping, assuming their modules do not use forecasting."""
+        if mapping_id is None: return
+        mapping = self.store.get_mapping(mapping_id)
+        if mapping is None: return
+        
+        _LOGGER.info(f"[async_continuous_update_for_mapping] considering sensor group {mapping_id}")
+        if self.check_mapping_sources(mapping_id)[0]:
+            _LOGGER.info(
+                f"[async_continuous_update_for_mapping] sensor group uses weather service, skipping automatic update to avoid API calls that can incur costs."
+            )
+            return
+        
+        # mapping does not use Weather Service
+        zones = self._get_zones_that_use_this_mapping(mapping_id)
+        zones_to_calculate = []
+        for z in zones:
+            zones_to_calculate.append(z)
+            zone = self.store.get_zone(z)
+            if (
+                zone is None
+                or zone.get(const.ZONE_STATE) != const.ZONE_STATE_AUTOMATIC
+            ):
+                _LOGGER.info(
+                    f"[async_continuous_update_for_mapping] zone {z} is not automatic, skipping."
+                )
+                continue
+            elif zone.get(const.ZONE_MODULE) is None:
+                _LOGGER.info(
+                    f"[async_continuous_update_for_mapping] zone {z} has no module, skipping."
+                )
+                continue
+
+            # check the module is not pyeto or if it is, that it does not use forecasting
+            mod = self.store.get_module(zone.get(const.ZONE_MODULE))
+            if mod is None: continue
+
+            can_calculate = False
+            if mod.get(const.MODULE_NAME) != "PyETO":
+                can_calculate = True
+                _LOGGER.info(
+                    f"[async_continuous_update_for_mapping]: module is not PyETO, so we can calculate for zone {zone.get(const.ZONE_ID)}."
+                )
+            else:
+                # module is PyETO. Check the config for forecast days == 0
+                _LOGGER.debug(
+                    "[async_continuous_update_for_mapping]: module is PyETO, checking config."
+                )
+                if mod.get(const.MODULE_CONFIG):
                     _LOGGER.debug(
-                        f"[async_continuous_update_for_mapping] for sensor group {mapping_id}: zones_to_calculate: {zones_to_calculate}. if this is empty this means that all zones for this sensor group have been calculated and therefore we can remove the weather data"
+                        f"[async_continuous_update_for_mapping]: module has config: {mod.get(const.MODULE_CONFIG)}"
                     )
-                    if zones_to_calculate and len(zones_to_calculate) > 0:
-                        _LOGGER.debug(
-                            f"[async_continuous_update_for_mapping] for sensor group {mapping_id}: did not calculate all zones, keeping weather data for the sensor group."
+                    _LOGGER.debug(
+                        f"[async_continuous_update_for_mapping]: mod.get(forecast_days,0) returns forecast_days: {mod.get(const.MODULE_CONFIG).get(const.CONF_PYETO_FORECAST_DAYS, 0)}"
+                    )
+                    # there is a config on the module, so let's check it
+                    if (
+                        mod.get(const.MODULE_CONFIG).get(
+                            const.CONF_PYETO_FORECAST_DAYS, 0
+                        )
+                        == 0
+                        or mod.get(const.MODULE_CONFIG).get(
+                            const.CONF_PYETO_FORECAST_DAYS
+                        )
+                        == "0"
+                        or mod.get(const.MODULE_CONFIG).get(
+                            const.CONF_PYETO_FORECAST_DAYS
+                        )
+                        is None
+                    ):
+                        can_calculate = True
+                        _LOGGER.info(
+                            f"checked config for PyETO module on zone {zone.get(const.ZONE_ID)}, forecast_days==0 or None, so we can calculate."
                         )
                     else:
-                        _LOGGER.debug(
-                            f"clearing weather data for sensor group {mapping_id} since we calculated all dependent zones."
+                        _LOGGER.info(
+                            f"checked config for PyETO module on zone {zone.get(const.ZONE_ID)}, forecast_days>0, skipping to avoid API calls that can incur costs."
                         )
-                        changes = {}
-                        changes = self.clear_weatherdata_for_mapping(mapping)
-                        self.store.async_update_mapping(mapping_id, changes=changes)
-
                 else:
+                    # default config for pyeto is forecast = 0, since there is no config we can calculate
+                    can_calculate = True
                     _LOGGER.info(
-                        f"[async_continuous_update_for_mapping] for sensor group {mapping_id}: sensor group does use weather service, skipping automatic update to avoid API calls that can incur costs."
+                        f"no config on PyETO module, since default is forecast_days==0, we can calculate for zone {zone.get(const.ZONE_ID)}."
                     )
+
+            _LOGGER.debug(
+                f"[async_continuous_update_for_mapping]: can_calculate: {can_calculate}"
+            )
+            if can_calculate:
+                # get the zone and calculate
+                _LOGGER.debug(
+                    f"[async_continuous_update_for_mapping] for sensor group {mapping_id}: calculating zone {zone.get(const.ZONE_ID)}"
+                )
+                await self.async_calculate_zone(
+                    z,
+                    continuous_updates=True,
+                )
+                zones_to_calculate.remove(z)
+            else:
+                _LOGGER.info(
+                    f"[async_continuous_update_for_mapping] for sensor group {mapping_id}: zone {z} has module {mod.get(const.MODULE_NAME)} that uses forecasting, skipping to avoid API calls that can incur costs."
+                )
+
+        # remove weather data from this mapping unless there are zones we did not calculate!
+        _LOGGER.debug(
+            f"[async_continuous_update_for_mapping] for sensor group {mapping_id}: zones_to_calculate: {zones_to_calculate}. if this is empty this means that all zones for this sensor group have been calculated and therefore we can remove the weather data"
+        )
+        if zones_to_calculate and len(zones_to_calculate) > 0:
+            _LOGGER.debug(
+                f"[async_continuous_update_for_mapping] for sensor group {mapping_id}: did not calculate all zones, keeping weather data for the sensor group."
+            )
+        else:
+            _LOGGER.debug(
+                f"clearing weather data for sensor group {mapping_id} since we calculated all dependent zones."
+            )
+            changes = {}
+            changes = self.clear_weatherdata_for_mapping(mapping)
+            self.store.async_update_mapping(mapping_id, changes=changes)
 
     def clear_weatherdata_for_mapping(self, mapping):
         changes = {
