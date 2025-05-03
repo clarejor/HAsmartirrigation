@@ -339,11 +339,11 @@ class SmartIrrigationCoordinator(DataUpdateCoordinator):
         self.store.async_update_config(data)
         async_dispatcher_send(self.hass, const.DOMAIN + "_config_updated")
 
-    async def set_up_auto_update_time(self, data):  # noqa: D102
+    async def set_up_auto_update_time(self, config):  # noqa: D102
         # WIP v2024.6.X:
         # experiment to use subscriptions to catch all updates instead of just on a time schedule
-        await self.update_subscriptions()
-        if data[const.CONF_AUTO_UPDATE_ENABLED]:
+        await self.update_subscriptions(config)
+        if config[const.CONF_AUTO_UPDATE_ENABLED]:
             # CONF_AUTO_UPDATE_SCHEDULE: minute, hour, day
             # CONF_AUTO_UPDATE_INTERVAL: X
             # CONF_AUTO_UPDATE_TIME: first update time
@@ -369,9 +369,9 @@ class SmartIrrigationCoordinator(DataUpdateCoordinator):
             # call update track time after waiting [update_delay] seconds
 
             delay = 0
-            if const.CONF_AUTO_UPDATE_DELAY in data:
-                if int(data[const.CONF_AUTO_UPDATE_DELAY]) > 0:
-                    delay = int(data[const.CONF_AUTO_UPDATE_DELAY])
+            if const.CONF_AUTO_UPDATE_DELAY in config:
+                if int(config[const.CONF_AUTO_UPDATE_DELAY]) > 0:
+                    delay = int(config[const.CONF_AUTO_UPDATE_DELAY])
                     _LOGGER.info(f"Delaying auto update with {delay} seconds")
             async_call_later(
                 self.hass, timedelta(seconds=delay), self.track_update_time
@@ -379,12 +379,9 @@ class SmartIrrigationCoordinator(DataUpdateCoordinator):
         elif self._track_auto_update_time_unsub:
             self._track_auto_update_time_unsub()
             self._track_auto_update_time_unsub = None
-            self.store.async_update_config(data)
+            self.store.async_update_config(config)
 
-    async def update_subscriptions(self):
-        # subscribe to all sensors
-        self._sensors_to_subscribe_to = await self.get_sensors_to_subscribe_to()
-
+    async def update_subscriptions(self, config = None):
         # WIP v2024.6.X: move to subscriptions
         # remove all existing sensor subscriptions
         _LOGGER.debug("[update_subscriptions]: removing all sensor subscriptions")
@@ -393,6 +390,19 @@ class SmartIrrigationCoordinator(DataUpdateCoordinator):
                 s()
             except Exception:
                 pass
+        
+        # check if continuous updates are enabled, if not, skip this and log a debug message
+        if config is None:
+            config = self.store.async_get_config()
+        if const.CONF_CONTINUOUS_UPDATES in config:
+            if not config[const.CONF_CONTINUOUS_UPDATES]:
+                _LOGGER.debug(
+                    "[update_subscriptions]: continuous updates are disabled, skipping."
+                )
+                return
+
+        # subscribe to all sensors
+        self._sensors_to_subscribe_to = await self.get_sensors_to_subscribe_to()
 
         if self._sensors_to_subscribe_to is not None:
             for s in self._sensors_to_subscribe_to:
@@ -471,15 +481,6 @@ class SmartIrrigationCoordinator(DataUpdateCoordinator):
             _LOGGER.debug(
                 f"[async_sensor_state_changed]: new state for {entity} is {new_state_obj.state}"
             )
-
-        # check if continuous updates are enabled, if not, skip this and log a debug message
-        the_config = self.store.async_get_config()
-        if const.CONF_CONTINUOUS_UPDATES in the_config:
-            if not the_config[const.CONF_CONTINUOUS_UPDATES]:
-                _LOGGER.debug(
-                    "[async_sensor_state_changed]: continuous updates are disabled, skipping."
-                )
-                return
 
         # get the mapping that uses this sensor
         mappings = self.store.get_mappings()
@@ -665,16 +666,16 @@ class SmartIrrigationCoordinator(DataUpdateCoordinator):
         }
         return changes
 
-    async def set_up_auto_calc_time(self, data):
+    async def set_up_auto_calc_time(self, config):
         # unsubscribe from any existing track_time_changes
         if self._track_auto_calc_time_unsub:
             self._track_auto_calc_time_unsub()
             self._track_auto_calc_time_unsub = None
-        if data[const.CONF_AUTO_CALC_ENABLED]:
+        if config[const.CONF_AUTO_CALC_ENABLED]:
             # make sure to unsub any existing and add for calc time
-            if check_time(data[const.CONF_CALC_TIME]):
+            if check_time(config[const.CONF_CALC_TIME]):
                 # make sure we track this time and at that moment trigger the refresh of all modules of all zones that are on automatic
-                timesplit = data[const.CONF_CALC_TIME].split(":")
+                timesplit = config[const.CONF_CALC_TIME].split(":")
                 self._track_auto_calc_time_unsub = async_track_time_change(
                     self.hass,
                     self._async_calculate_all,
@@ -683,12 +684,12 @@ class SmartIrrigationCoordinator(DataUpdateCoordinator):
                     second=0,
                 )
                 _LOGGER.info(
-                    "Scheduled auto calculate for {}".format(data[const.CONF_CALC_TIME])
+                    "Scheduled auto calculate for {}".format(config[const.CONF_CALC_TIME])
                 )
             else:
                 _LOGGER.warning(
                     "Scheduled auto calculate time is not valid: {}".format(
-                        data[const.CONF_CALC_TIME]
+                        config[const.CONF_CALC_TIME]
                     )
                 )
                 # raise ValueError("Time is not a valid time")
@@ -700,17 +701,17 @@ class SmartIrrigationCoordinator(DataUpdateCoordinator):
             if self._track_auto_calc_time_unsub:
                 self._track_auto_calc_time_unsub()
                 self._track_auto_calc_time_unsub = None
-            self.store.async_update_config(data)
+            self.store.async_update_config(config)
 
-    async def set_up_auto_clear_time(self, data):
+    async def set_up_auto_clear_time(self, config):
         # unsubscribe from any existing track_time_changes
         if self._track_auto_clear_time_unsub:
             self._track_auto_clear_time_unsub()
             self._track_auto_clear_time_unsub = None
-        if data[const.CONF_AUTO_CLEAR_ENABLED]:
+        if config[const.CONF_AUTO_CLEAR_ENABLED]:
             # make sure to unsub any existing and add for clear time
-            if check_time(data[const.CONF_CLEAR_TIME]):
-                timesplit = data[const.CONF_CLEAR_TIME].split(":")
+            if check_time(config[const.CONF_CLEAR_TIME]):
+                timesplit = config[const.CONF_CLEAR_TIME].split(":")
 
                 self._track_auto_clear_time_unsub = async_track_time_change(
                     self.hass,
@@ -721,17 +722,17 @@ class SmartIrrigationCoordinator(DataUpdateCoordinator):
                 )
                 _LOGGER.info(
                     "Scheduled auto clear of weatherdata for {}".format(
-                        data[const.CONF_CLEAR_TIME]
+                        config[const.CONF_CLEAR_TIME]
                     )
                 )
             else:
                 _LOGGER.warning(
                     "Scheduled auto clear time is not valid: {}".format(
-                        data[const.CONF_CLEAR_TIME]
+                        config[const.CONF_CLEAR_TIME]
                     )
                 )
                 raise ValueError("Time is not a valid time")
-        self.store.async_update_config(data)
+        self.store.async_update_config(config)
 
     @callback
     async def track_update_time(self, *args):
@@ -1630,7 +1631,6 @@ class SmartIrrigationCoordinator(DataUpdateCoordinator):
             async_dispatcher_send(
                 self.hass, const.DOMAIN + "_config_updated", mapping_id
             )
-            await self.update_subscriptions()
         else:
             # create a mapping
             self.store.async_create_mapping(data)
