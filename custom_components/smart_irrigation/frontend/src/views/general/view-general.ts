@@ -24,6 +24,7 @@ import {
   CONF_CALC_TIME,
   CONF_CLEAR_TIME,
   CONF_CONTINUOUS_UPDATES,
+  CONF_SENSOR_DEBOUNCE,
   DOMAIN,
 } from "../../const";
 import { mdiInformationOutline } from "@mdi/js";
@@ -62,6 +63,7 @@ export class SmartIrrigationViewGeneral extends SubscribeMixin(LitElement) {
       CONF_AUTO_CLEAR_ENABLED,
       CONF_CLEAR_TIME,
       CONF_CONTINUOUS_UPDATES,
+      CONF_SENSOR_DEBOUNCE,
     ]);
 
     /*Object.entries(this.data).forEach(([key, value]) => console.log(key, value));*/
@@ -491,6 +493,26 @@ export class SmartIrrigationViewGeneral extends SubscribeMixin(LitElement) {
           /><label for="continuousupdatesoff"
             >${localize("common.labels.no", this.hass.language)}</label
           >
+        </div>
+        <div class="card-content">
+          <label for="sensor_debounce"
+            >${localize(
+              "panels.general.cards.continuousupdates.labels.sensor_debounce",
+              this.hass.language,
+            )}
+            (ms):</label
+          >
+          <input
+            id="sensor_debounce"
+            type="text"
+            class="shortinput"
+            .value="${this.config.sensor_debounce}"
+            @input=${(e: Event) => {
+              this.saveData({
+                sensor_debounce: parseInt((e.target as HTMLInputElement).value),
+              });
+            }}
+          />
         </div>
       </ha-card> `;
       const r = html`<ha-card
