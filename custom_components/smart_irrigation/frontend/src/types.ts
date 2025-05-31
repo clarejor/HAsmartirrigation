@@ -1,10 +1,3 @@
-import { formatTimeWithSeconds } from "custom-card-helpers";
-import {
-  HassEntity,
-  HassEntityAttributeBase,
-} from "home-assistant-js-websocket";
-import { textSpanIsEmpty } from "typescript";
-
 export interface Dictionary<TValue> {
   [id: string]: TValue;
 }
@@ -90,7 +83,7 @@ export class SmartIrrigationZone {
     s: number,
     t: number,
     st: SmartIrrigationZoneState,
-    d: number
+    d: number,
   ) {
     this.id = i;
     this.name = n;

@@ -85,7 +85,7 @@ export class SmartIrrigationViewGeneral extends SubscribeMixin(LitElement) {
             <title>
               ${localize(
                 "panels.zones.actions.information",
-                this.hass.language
+                this.hass.language,
               )}
             </title>
             <path fill="#404040" d="${mdiInformationOutline}" />
@@ -96,7 +96,7 @@ export class SmartIrrigationViewGeneral extends SubscribeMixin(LitElement) {
           <label class="hidden" id="autocalcdescription">
             ${localize(
               "panels.general.cards.automatic-duration-calculation.description",
-              this.hass.language
+              this.hass.language,
             )}
           </label>
         </div>
@@ -104,7 +104,7 @@ export class SmartIrrigationViewGeneral extends SubscribeMixin(LitElement) {
           <label for="autocalcenabled"
             >${localize(
               "panels.general.cards.automatic-duration-calculation.labels.auto-calc-enabled",
-              this.hass.language
+              this.hass.language,
             )}:</label
           >
           <input
@@ -116,7 +116,7 @@ export class SmartIrrigationViewGeneral extends SubscribeMixin(LitElement) {
             @change="${(e: Event) => {
               this.saveData({
                 autocalcenabled: parseBoolean(
-                  (e.target as HTMLInputElement).value
+                  (e.target as HTMLInputElement).value,
                 ),
               });
             }}"
@@ -132,7 +132,7 @@ export class SmartIrrigationViewGeneral extends SubscribeMixin(LitElement) {
             @change="${(e: Event) => {
               this.saveData({
                 autocalcenabled: parseBoolean(
-                  (e.target as HTMLInputElement).value
+                  (e.target as HTMLInputElement).value,
                 ),
               });
             }}"
@@ -146,7 +146,7 @@ export class SmartIrrigationViewGeneral extends SubscribeMixin(LitElement) {
             <label for="calctime"
               >${localize(
                 "panels.general.cards.automatic-duration-calculation.labels.auto-calc-time",
-                this.hass.language
+                this.hass.language,
               )}</label
             >:
             <input
@@ -165,7 +165,7 @@ export class SmartIrrigationViewGeneral extends SubscribeMixin(LitElement) {
       r1 = html`<ha-card
         header="${localize(
           "panels.general.cards.automatic-duration-calculation.header",
-          this.hass.language
+          this.hass.language,
         )}"
       >
         ${r1}</ha-card
@@ -181,7 +181,7 @@ export class SmartIrrigationViewGeneral extends SubscribeMixin(LitElement) {
             <title>
               ${localize(
                 "panels.zones.actions.information",
-                this.hass.language
+                this.hass.language,
               )}
             </title>
             <path fill="#404040" d="${mdiInformationOutline}" />
@@ -191,7 +191,7 @@ export class SmartIrrigationViewGeneral extends SubscribeMixin(LitElement) {
           <label class="hidden" id="autoupdatedescription">
             ${localize(
               "panels.general.cards.automatic-update.description",
-              this.hass.language
+              this.hass.language,
             )}
           </label>
         </div>
@@ -199,7 +199,7 @@ export class SmartIrrigationViewGeneral extends SubscribeMixin(LitElement) {
           <label for="autoupdateenabled"
             >${localize(
               "panels.general.cards.automatic-update.labels.auto-update-enabled",
-              this.hass.language
+              this.hass.language,
             )}:</label
           >
           <input
@@ -211,7 +211,7 @@ export class SmartIrrigationViewGeneral extends SubscribeMixin(LitElement) {
             @change="${(e: Event) => {
               this.saveData({
                 autoupdateenabled: parseBoolean(
-                  (e.target as HTMLInputElement).value
+                  (e.target as HTMLInputElement).value,
                 ),
               });
             }}"
@@ -227,7 +227,7 @@ export class SmartIrrigationViewGeneral extends SubscribeMixin(LitElement) {
             @change="${(e: Event) => {
               this.saveData({
                 autoupdateenabled: parseBoolean(
-                  (e.target as HTMLInputElement).value
+                  (e.target as HTMLInputElement).value,
                 ),
               });
             }}"
@@ -241,7 +241,7 @@ export class SmartIrrigationViewGeneral extends SubscribeMixin(LitElement) {
             <label for="autoupdateinterval"
               >${localize(
                 "panels.general.cards.automatic-update.labels.auto-update-interval",
-                this.hass.language
+                this.hass.language,
               )}:</label
             >
             <input
@@ -252,7 +252,7 @@ export class SmartIrrigationViewGeneral extends SubscribeMixin(LitElement) {
               @input="${(e: Event) => {
                 this.saveData({
                   autoupdateinterval: parseInt(
-                    (e.target as HTMLInputElement).value
+                    (e.target as HTMLInputElement).value,
                   ),
                 });
               }}"
@@ -273,7 +273,7 @@ export class SmartIrrigationViewGeneral extends SubscribeMixin(LitElement) {
               >
                 ${localize(
                   "panels.general.cards.automatic-update.options.minutes",
-                  this.hass.language
+                  this.hass.language,
                 )}
               </option>
               <option
@@ -283,7 +283,7 @@ export class SmartIrrigationViewGeneral extends SubscribeMixin(LitElement) {
               >
                 ${localize(
                   "panels.general.cards.automatic-update.options.hours",
-                  this.hass.language
+                  this.hass.language,
                 )}
               </option>
               <option
@@ -293,7 +293,7 @@ export class SmartIrrigationViewGeneral extends SubscribeMixin(LitElement) {
               >
                 ${localize(
                   "panels.general.cards.automatic-update.options.days",
-                  this.hass.language
+                  this.hass.language,
                 )}
               </option>
             </select>
@@ -302,7 +302,7 @@ export class SmartIrrigationViewGeneral extends SubscribeMixin(LitElement) {
             <label for="updatedelay"
               >${localize(
                 "panels.general.cards.automatic-update.labels.auto-update-delay",
-                this.hass.language
+                this.hass.language,
               )}
               (s):</label
             >
@@ -314,7 +314,7 @@ export class SmartIrrigationViewGeneral extends SubscribeMixin(LitElement) {
               @input=${(e: Event) => {
                 this.saveData({
                   autoupdatedelay: parseInt(
-                    (e.target as HTMLInputElement).value
+                    (e.target as HTMLInputElement).value,
                   ),
                 });
               }}
@@ -324,7 +324,7 @@ export class SmartIrrigationViewGeneral extends SubscribeMixin(LitElement) {
 
       r2 = html`<ha-card header="${localize(
         "panels.general.cards.automatic-update.header",
-        this.hass.language
+        this.hass.language,
       )}",
       this.hass.language)}">${r2}</ha-card>`;
 
@@ -338,7 +338,7 @@ export class SmartIrrigationViewGeneral extends SubscribeMixin(LitElement) {
             <title>
               ${localize(
                 "panels.zones.actions.information",
-                this.hass.language
+                this.hass.language,
               )}
             </title>
 
@@ -349,7 +349,7 @@ export class SmartIrrigationViewGeneral extends SubscribeMixin(LitElement) {
           <label class="hidden" id="autocleardescription">
             ${localize(
               "panels.general.cards.automatic-clear.description",
-              this.hass.language
+              this.hass.language,
             )}
           </label>
         </div>
@@ -357,7 +357,7 @@ export class SmartIrrigationViewGeneral extends SubscribeMixin(LitElement) {
           <label for="autoclearenabled"
             >${localize(
               "panels.general.cards.automatic-clear.labels.automatic-clear-enabled",
-              this.hass.language
+              this.hass.language,
             )}:</label
           >
           <input
@@ -369,7 +369,7 @@ export class SmartIrrigationViewGeneral extends SubscribeMixin(LitElement) {
             @change="${(e: Event) => {
               this.saveData({
                 autoclearenabled: parseBoolean(
-                  (e.target as HTMLInputElement).value
+                  (e.target as HTMLInputElement).value,
                 ),
               });
             }}"
@@ -385,7 +385,7 @@ export class SmartIrrigationViewGeneral extends SubscribeMixin(LitElement) {
             @change="${(e: Event) => {
               this.saveData({
                 autoclearenabled: parseBoolean(
-                  (e.target as HTMLInputElement).value
+                  (e.target as HTMLInputElement).value,
                 ),
               });
             }}"
@@ -399,7 +399,7 @@ export class SmartIrrigationViewGeneral extends SubscribeMixin(LitElement) {
             <label for="calctime"
               >${localize(
                 "panels.general.cards.automatic-clear.labels.automatic-clear-time",
-                this.hass.language
+                this.hass.language,
               )}</label
             >:
             <input
@@ -417,13 +417,13 @@ export class SmartIrrigationViewGeneral extends SubscribeMixin(LitElement) {
       }
       r3 = html`<ha-card header="${localize(
         "panels.general.cards.automatic-clear.header",
-        this.hass.language
+        this.hass.language,
       )}" >${r3}</div></ha-card>`;
 
-      let r4 = html`<ha-card
+      const r4 = html`<ha-card
         header="${localize(
           "panels.general.cards.continuousupdates.header",
-          this.hass.language
+          this.hass.language,
         )}"
       >
         <div class="card-content">
@@ -438,7 +438,7 @@ export class SmartIrrigationViewGeneral extends SubscribeMixin(LitElement) {
             <title>
               ${localize(
                 "panels.zones.actions.information",
-                this.hass.language
+                this.hass.language,
               )}
             </title>
             <path fill="#404040" d="${mdiInformationOutline}" />
@@ -448,7 +448,7 @@ export class SmartIrrigationViewGeneral extends SubscribeMixin(LitElement) {
           <label class="hidden" id="continuousupdatesdescription">
             ${localize(
               "panels.general.cards.continuousupdates.description",
-              this.hass.language
+              this.hass.language,
             )}
           </label>
         </div>
@@ -456,10 +456,10 @@ export class SmartIrrigationViewGeneral extends SubscribeMixin(LitElement) {
           <label for="continuousupdates"
             >${localize(
               "panels.general.cards.continuousupdates.labels.continuousupdates",
-              this.hass.language
+              this.hass.language,
             )}:</label
           >
-<input
+          <input
             type="radio"
             id="continuousupdateson"
             name="continuousupdates"
@@ -468,7 +468,7 @@ export class SmartIrrigationViewGeneral extends SubscribeMixin(LitElement) {
             @change="${(e: Event) => {
               this.saveData({
                 continuousupdates: parseBoolean(
-                  (e.target as HTMLInputElement).value
+                  (e.target as HTMLInputElement).value,
                 ),
               });
             }}"
@@ -484,14 +484,13 @@ export class SmartIrrigationViewGeneral extends SubscribeMixin(LitElement) {
             @change="${(e: Event) => {
               this.saveData({
                 continuousupdates: parseBoolean(
-                  (e.target as HTMLInputElement).value
+                  (e.target as HTMLInputElement).value,
                 ),
               });
             }}"
           /><label for="continuousupdatesoff"
             >${localize("common.labels.no", this.hass.language)}</label
           >
-
         </div>
       </ha-card> `;
       const r = html`<ha-card
@@ -515,7 +514,10 @@ export class SmartIrrigationViewGeneral extends SubscribeMixin(LitElement) {
     };
     saveConfig(this.hass, this.data)
       .catch((e) =>
-        handleError(e, this.shadowRoot!.querySelector("ha-card") as HTMLElement)
+        handleError(
+          e,
+          this.shadowRoot!.querySelector("ha-card") as HTMLElement,
+        ),
       )
       .then();
   }
