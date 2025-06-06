@@ -56,6 +56,7 @@ async def async_setup_entry(
             bucket=config[const.ZONE_BUCKET],
             last_updated=config[const.ZONE_LAST_UPDATED],
             last_calculated=config[const.ZONE_LAST_CALCULATED],
+            last_rain_total=config[const.ZONE_LAST_RAIN_TOTAL],
             number_of_data_points=config[const.ZONE_NUMBER_OF_DATA_POINTS],
             delta=config[const.ZONE_DELTA],
             drainage_rate=config[const.ZONE_DRAINAGE_RATE],
@@ -105,10 +106,11 @@ class SmartIrrigationZoneEntity(SensorEntity, RestoreEntity):
         bucket: float,
         last_updated: str,
         last_calculated: str,
+        last_rain_total: float,
         number_of_data_points: int,
         delta: float,
         drainage_rate: float,
-        current_drainage: float
+        current_drainage: float,
     ) -> None:
         """Initialize the sensor entity."""
         self._hass = hass
@@ -137,6 +139,7 @@ class SmartIrrigationZoneEntity(SensorEntity, RestoreEntity):
         self._bucket = bucket
         self._last_updated = last_updated
         self._last_calculated = last_calculated
+        self._last_rain_total = last_rain_total
         self._number_of_data_points = number_of_data_points
         self._delta = delta
         self._drainage_rate = drainage_rate
@@ -161,6 +164,7 @@ class SmartIrrigationZoneEntity(SensorEntity, RestoreEntity):
             self._bucket = zone["bucket"]
             self._last_updated = zone["last_updated"]
             self._last_calculated = zone["last_calculated"]
+            self._last_rain_total = zone[const.ZONE_LAST_RAIN_TOTAL]
             self._number_of_data_points = zone["number_of_data_points"]
             self._delta = zone["delta"]
             self._drainage_rate = zone["drainage_rate"]
@@ -250,6 +254,7 @@ class SmartIrrigationZoneEntity(SensorEntity, RestoreEntity):
             "bucket": self._bucket,
             "last_updated": convert_timestamp(self._last_updated),
             "last_calculated": convert_timestamp(self._last_calculated),
+            "last_rain_total": self._last_rain_total,
             "number_of_data_points": self._number_of_data_points,
             "et_value": self._delta,
             # asyncio.run_coroutine_threadsafe(

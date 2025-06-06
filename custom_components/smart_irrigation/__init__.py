@@ -394,6 +394,14 @@ class SmartIrrigationCoordinator(DataUpdateCoordinator):
             with contextlib.suppress(Exception):
                 s()
 
+        zones = await self.store.async_get_zones()
+        for zone in zones:
+            zone[const.ZONE_LAST_RAIN_TOTAL] = None
+            self.store.async_update_zone(
+                zone.get(const.ZONE_ID),
+                { const.ZONE_LAST_RAIN_TOTAL: None }
+            )
+
         # check if continuous updates are enabled, if not, skip this
         # and log a debug message
         if config is None:
@@ -1048,7 +1056,9 @@ class SmartIrrigationCoordinator(DataUpdateCoordinator):
         resultdata = {}
 
         self._handle_retrieved_at(data_by_sensor, zone, resultdata, continuous_updates)
-        self._aggregate_sensor_data(data_by_sensor, mapping, resultdata)
+        self._aggregate_sensor_data(
+            data_by_sensor, zone, mapping, resultdata, continuous_updates
+        )
         self._fill_missing_from_last_entry(mapping, resultdata)
 
         _LOGGER.debug("apply_aggregates_to_mapping_data returns %s", resultdata)
@@ -1129,7 +1139,9 @@ class SmartIrrigationCoordinator(DataUpdateCoordinator):
             hour_multiplier,
         )
 
-    def _aggregate_sensor_data(self, data_by_sensor, mapping, resultdata):
+    def _aggregate_sensor_data(
+        self, data_by_sensor, zone, mapping, resultdata, continuous_updates
+    ):
         """Aggregate sensor data by configured or default aggregate."""
         for key, d in data_by_sensor.items():
             _LOGGER.debug(
@@ -1138,6 +1150,49 @@ class SmartIrrigationCoordinator(DataUpdateCoordinator):
                 d,
                 len(d),
             )
+
+            # For continuous updates, use the rain delta since last calculation
+            if continuous_updates and key == const.MAPPING_PRECIPITATION:
+                _LOGGER.debug(
+                    "[apply_aggregates_to_mapping_data]: overriding precipitation aggregation for continuous mode",
+                )
+                # Fetch rain total value from last time
+                last_total = zone[const.ZONE_LAST_RAIN_TOTAL]
+                if last_total is None:
+                    _LOGGER.debug(
+                        "[apply_aggregates_to_mapping_data]: last rain total is not set, using d[0]",
+                    )
+                    last_total = d[0]
+                # Detect resets to zero (i.e. passing midnight)
+                rollover = 0
+                for i, val in enumerate(d):
+                    if i > 0 and val < d[i - 1]:
+                        _LOGGER.debug(
+                            "[apply_aggregates_to_mapping_data]: detected reset at index %s",
+                            i,
+                        )
+                        rollover += d[i - 1]
+                # Final value is delta between last calculated value and most
+                # recent sensor reading, plus any resets
+                resultdata[key] = d[-1] + rollover - last_total
+                _LOGGER.debug(
+                    "[apply_aggregates_to_mapping_data]: last rain total: %s d[-1]: %s rollover: %s final value: %s",
+                    last_total,
+                    d[-1],
+                    rollover,
+                    resultdata[key],
+                )
+                # Update rain total for next time
+                zone[const.ZONE_LAST_RAIN_TOTAL] = d[-1]
+                self.store.async_update_zone(
+                    zone.get(const.ZONE_ID), {const.ZONE_LAST_RAIN_TOTAL: d[-1]}
+                )
+                _LOGGER.debug(
+                    "[apply_aggregates_to_mapping_data]: set last rain total to %s",
+                    d[-1]
+                )
+                continue
+
             if len(d) > 1:
                 d = [float(i) for i in d]
                 _LOGGER.debug(
@@ -1246,6 +1301,11 @@ class SmartIrrigationCoordinator(DataUpdateCoordinator):
                     key,
                     val,
                 )
+                if key == const.MAPPING_PRECIPITATION:
+                    _LOGGER.debug(
+                        "[async_aggregate_to_mapping_data]: jk using 0 for precip",
+                    )
+                    val = 0
                 resultdata[key] = val
                 if key == const.MAPPING_TEMPERATURE:
                     resultdata[const.MAPPING_MAX_TEMP] = val
@@ -1364,7 +1424,8 @@ class SmartIrrigationCoordinator(DataUpdateCoordinator):
                     weatherdata=sensor_values,
                     forecastdata=forecastdata,
                 )
-                # if continuous updates are on, add the current date time to set the last updated time
+
+                # if continuous updates are on, set some extra data
                 if continuous_updates:
                     data[const.ZONE_LAST_UPDATED] = datetime.datetime.now()
 
