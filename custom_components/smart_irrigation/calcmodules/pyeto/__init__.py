@@ -174,7 +174,6 @@ class PyETO(SmartIrrigationCalculationModule):
             wind_m_s = weather_data.get(MAPPING_WINDSPEED)
             atmos_pres = weather_data.get(MAPPING_PRESSURE)
             sol_rad = weather_data.get(MAPPING_SOLRAD)
-            precip = weather_data.get(MAPPING_PRECIPITATION)
             if (
                 tdew is not None
                 and temp_c_min is not None
@@ -195,7 +194,7 @@ class PyETO(SmartIrrigationCalculationModule):
                 cs_radvar = cs_rad(self._elevation, et_radvar)
                 _LOGGER.debug("[pyETO: calculate_et_for_day] cs_radvar: %s", cs_radvar)
                 _LOGGER.debug(
-                    "[pyETO: solrad_behavior: %s and sol_rad: %s",
+                    "[pyETO: calculate_et_for_day]: solrad_behavior: %s and sol_rad: %s",
                     self._solrad_behavior,
                     sol_rad,
                 )
@@ -287,15 +286,9 @@ class PyETO(SmartIrrigationCalculationModule):
                     ),  # value stored is in hPa, but needs to be provided in kPa
                 )
                 _LOGGER.debug("[pyETO: calculate_et_for_day] eto: %s", eto)
-
-                # beta25: temporarily removing all rounds to see if we can find the math issue reported in #186
-                # delta = round(precip-eto,1)
-                _LOGGER.debug("[pyETO: calculate_et_for_day] precip: %s", precip)
-                if precip is None:
-                    precip = 0
                 if eto is None:
                     eto = 0
-                delta = precip - eto
+                delta = -eto
 
                 _LOGGER.debug("[pyETO: calculate_et_for_day] delta returned: %s", delta)
                 return delta

@@ -1420,7 +1420,10 @@ class SmartIrrigationCoordinator(DataUpdateCoordinator):
             if sensor_values:
                 # make sure we convert forecast data pressure to absolute!
                 data = await self.calculate_module(
-                    zone, weatherdata=sensor_values, forecastdata=forecastdata
+                    zone,
+                    continuous_updates,
+                    weatherdata=sensor_values,
+                    forecastdata=forecastdata,
                 )
 
                 # if continuous updates are on, set some extra data
@@ -1471,7 +1474,7 @@ class SmartIrrigationCoordinator(DataUpdateCoordinator):
                 break
         return modinst
 
-    async def calculate_module(self, zone, weatherdata, forecastdata):
+    async def calculate_module(self, zone, continuous_updates, weatherdata, forecastdata):
         """Calculate irrigation values for a zone using the specified weather and forecast data.
 
         Args:
@@ -1513,7 +1516,6 @@ class SmartIrrigationCoordinator(DataUpdateCoordinator):
             #    precip = precip_from_sensor
             if m[const.MODULE_NAME] == "PyETO":
                 # pyeto expects pressure in hpa, solar radiation in mj/m2/day and wind speed in m/s
-
                 delta = modinst.calculate(
                     weather_data=weatherdata, forecast_data=forecastdata
                 )
@@ -1530,15 +1532,25 @@ class SmartIrrigationCoordinator(DataUpdateCoordinator):
                         zone.get(const.ZONE_NAME),
                     )
                     return None
-            # beta25: temporarily removing all rounds to see if we can find the math issue reported in #186
-            # data[const.ZONE_BUCKET] = round(bucket+delta,1)
-            # data[const.ZONE_DELTA] = round(delta,1)
+            # Scale module ET value by interval (hour_multiplier = fractional days)
             _LOGGER.debug("[calculate-module]: retrieved from module: %s", delta)
             hour_multiplier = weatherdata.get(const.MAPPING_DATA_MULTIPLIER, 1.0)
             _LOGGER.debug("[calculate-module]: hour_multiplier: %s", hour_multiplier)
-            data[const.ZONE_DELTA] = delta * hour_multiplier
-            _LOGGER.debug("[calculate-module]: new delta: %s", delta * hour_multiplier)
-            newbucket = bucket + (delta * hour_multiplier)
+            delta *= hour_multiplier
+
+            # Add precipitation to bucket
+            if m[const.MODULE_NAME] == "PyETO":
+                precip = weatherdata.get(const.MAPPING_PRECIPITATION, 0)
+                _LOGGER.debug("[calculate-module]: precip: %s", precip)
+                # Don't scale precip in continuous mode
+                if (continuous_updates):
+                    delta += precip
+                else:
+                    delta += precip * hour_multiplier
+
+            data[const.ZONE_DELTA] = delta
+            _LOGGER.debug("[calculate-module]: new delta: %s", delta)
+            newbucket = bucket + delta
 
             # if maximum bucket configured, limit bucket with that.
             # any water above maximum is removed with runoff / bypass flow.
