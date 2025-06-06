@@ -86,6 +86,7 @@ from .const import (
     ZONE_ID,
     ZONE_LAST_CALCULATED,
     ZONE_LAST_UPDATED,
+    ZONE_LAST_RAIN_TOTAL,
     ZONE_LEAD_TIME,
     ZONE_MAPPING,
     ZONE_MAXIMUM_BUCKET,
@@ -132,6 +133,7 @@ class ZoneEntry:
     maximum_bucket = attr.ib(type=float, default=CONF_DEFAULT_MAXIMUM_BUCKET)
     last_calculated = attr.ib(type=datetime, default=None)
     last_updated = attr.ib(type=datetime, default=None)
+    last_rain_total = attr.ib(type=float, default=None)
     number_of_data_points = attr.ib(type=int, default=0)
     drainage_rate = attr.ib(type=float, default=CONF_DEFAULT_DRAINAGE_RATE)
     current_drainage = attr.ib(type=float, default=0)
@@ -309,6 +311,7 @@ class SmartIrrigationStorage:
                         ),
                         last_calculated=zone.get(ZONE_LAST_CALCULATED, None),
                         last_updated=zone.get(ZONE_LAST_UPDATED, None),
+                        last_rain_total=zone.get(ZONE_LAST_RAIN_TOTAL, None),
                         number_of_data_points=zone.get(
                             ZONE_NUMBER_OF_DATA_POINTS, None
                         ),

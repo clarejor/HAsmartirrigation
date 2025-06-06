@@ -196,6 +196,7 @@ class SmartIrrigationZoneView(HomeAssistantView):
                 vol.Optional(const.ZONE_LAST_CALCULATED): vol.Or(
                     None, str, datetime.datetime
                 ),
+                vol.Optional(const.ZONE_LAST_RAIN_TOTAL): vol.Or(float, int, None),
                 vol.Optional(const.ZONE_LAST_UPDATED): vol.Or(
                     None, str, datetime.datetime
                 ),
