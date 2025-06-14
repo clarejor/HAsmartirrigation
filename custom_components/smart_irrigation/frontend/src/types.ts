@@ -73,7 +73,6 @@ export class SmartIrrigationZone {
   module?: number;
   bucket: number;
   delta: number;
-  old_bucket: number;
   explanation: string;
   multiplier: number;
   mapping?: number;
@@ -103,7 +102,6 @@ export class SmartIrrigationZone {
     this.module = undefined;
     this.bucket = 0;
     this.delta = 0;
-    this.old_bucket = 0;
     this.explanation = "";
     this.multiplier = 1.0;
     this.mapping = undefined;

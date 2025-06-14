@@ -157,7 +157,6 @@ class SmartIrrigationViewZones extends SubscribeMixin(LitElement) {
       duration: 0,
       bucket: 0,
       module: undefined,
-      old_bucket: 0,
       delta: 0,
       explanation: "",
       multiplier: 1,
