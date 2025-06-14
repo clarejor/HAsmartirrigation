@@ -442,7 +442,7 @@ class SmartIrrigationCoordinator(DataUpdateCoordinator):
             _LOGGER.debug(
                 "[get_sensors_to_subscribe_to]: mapping %s: %s",
                 mapping_id,
-                mapping[const.MAPPING_MAPPINGS],
+                mapping[const.MAPPING_MAPPINGS], # TODO: this errors if mapping is None
             )
             if sensor_in_mapping:
                 for key, the_map in mapping[const.MAPPING_MAPPINGS].items():
@@ -1059,7 +1059,7 @@ class SmartIrrigationCoordinator(DataUpdateCoordinator):
         self._aggregate_sensor_data(
             data_by_sensor, zone, mapping, resultdata, continuous_updates
         )
-        self._fill_missing_from_last_entry(mapping, resultdata)
+        self._fill_missing_from_last_entry(mapping, resultdata, continuous_updates)
 
         _LOGGER.debug("apply_aggregates_to_mapping_data returns %s", resultdata)
         return resultdata
@@ -1144,147 +1144,135 @@ class SmartIrrigationCoordinator(DataUpdateCoordinator):
     ):
         """Aggregate sensor data by configured or default aggregate."""
         for key, d in data_by_sensor.items():
+            d = [float(i) for i in d]
+
+            aggregate = const.MAPPING_CONF_AGGREGATE_OPTIONS_DEFAULT
+            if key == const.MAPPING_PRECIPITATION:
+                aggregate = (
+                    const.MAPPING_CONF_AGGREGATE_OPTIONS_DEFAULT_PRECIPITATION
+                )
+            elif key == const.MAPPING_TEMPERATURE:
+                resultdata[const.MAPPING_MAX_TEMP] = max(d)
+                resultdata[const.MAPPING_MIN_TEMP] = min(d)
+            mappings = mapping.get(const.MAPPING_MAPPINGS, {})
+            if key in mappings:
+                aggregate = mappings[key].get(
+                    const.MAPPING_CONF_AGGREGATE,
+                    aggregate,
+                )
+
             _LOGGER.debug(
-                "[apply_aggregates_to_mapping_data]: aggregation loop: key: %s, d: %s, len(d): %s",
+                "[apply_aggregates_to_mapping_data]: aggregation loop: key: %s, aggregate: %s, data: %s",
                 key,
+                aggregate,
                 d,
-                len(d),
             )
 
-            # For continuous updates, use the rain delta since last calculation
-            if continuous_updates and key == const.MAPPING_PRECIPITATION:
-                _LOGGER.debug(
-                    "[apply_aggregates_to_mapping_data]: overriding precipitation aggregation for continuous mode",
-                )
-                # Fetch rain total value from last time
-                last_total = zone[const.ZONE_LAST_RAIN_TOTAL]
-                if last_total is None:
+            if aggregate == const.MAPPING_CONF_AGGREGATE_DELTA:
+                # Fetch value from last calculation
+                last_calc_value = zone[const.ZONE_LAST_RAIN_TOTAL]
+                if last_calc_value is None:
                     _LOGGER.debug(
-                        "[apply_aggregates_to_mapping_data]: last rain total is not set, using d[0]",
+                        "[apply_aggregates_to_mapping_data]: last value is not set, using d[0]",
                     )
-                    last_total = d[0]
-                # Detect resets to zero (i.e. passing midnight)
-                rollover = 0
-                for i, val in enumerate(d):
-                    if i > 0 and val < d[i - 1]:
+                    last_calc_value = d[0]
+                # Accumulate values
+                prev = last_calc_value
+                result = 0
+                for val in d:
+                    # Detect resets to zero (i.e. passing midnight)
+                    if val < prev:
                         _LOGGER.debug(
-                            "[apply_aggregates_to_mapping_data]: detected reset at index %s",
-                            i,
+                            "[apply_aggregates_to_mapping_data]: detected reset (%s < %s)",
+                            val, prev,
                         )
-                        rollover += d[i - 1]
-                # Final value is delta between last calculated value and most
-                # recent sensor reading, plus any resets
-                resultdata[key] = d[-1] + rollover - last_total
+                        prev = 0
+                    result += val - prev
+                    prev = val
                 _LOGGER.debug(
-                    "[apply_aggregates_to_mapping_data]: last rain total: %s d[-1]: %s rollover: %s final value: %s",
-                    last_total,
-                    d[-1],
-                    rollover,
-                    resultdata[key],
+                    "[apply_aggregates_to_mapping_data]: last calc value: %s change: %s",
+                    last_calc_value,
+                    result,
                 )
-                # Update rain total for next time
+                resultdata[key] = result
+                # Update value for next time
                 zone[const.ZONE_LAST_RAIN_TOTAL] = d[-1]
                 self.store.async_update_zone(
                     zone.get(const.ZONE_ID), {const.ZONE_LAST_RAIN_TOTAL: d[-1]}
                 )
                 _LOGGER.debug(
-                    "[apply_aggregates_to_mapping_data]: set last rain total to %s",
+                    "[apply_aggregates_to_mapping_data]: set last calc value to %s",
                     d[-1]
                 )
                 continue
 
-            if len(d) > 1:
-                d = [float(i) for i in d]
-                _LOGGER.debug(
-                    "[apply_aggregates_to_mapping_data]: after conversion to float: applying aggregate to %s with values %s",
-                    key,
-                    d,
-                )
-                aggregate = const.MAPPING_CONF_AGGREGATE_OPTIONS_DEFAULT
-                if key == const.MAPPING_PRECIPITATION:
-                    aggregate = (
-                        const.MAPPING_CONF_AGGREGATE_OPTIONS_DEFAULT_PRECIPITATION
-                    )
-                elif key == const.MAPPING_TEMPERATURE:
-                    resultdata[const.MAPPING_MAX_TEMP] = max(d)
-                    resultdata[const.MAPPING_MIN_TEMP] = min(d)
-                mappings = mapping.get(const.MAPPING_MAPPINGS, {})
-                if key in mappings:
-                    aggregate = mappings[key].get(
-                        const.MAPPING_CONF_AGGREGATE,
-                        aggregate,
-                    )
-                _LOGGER.debug(
-                    "[async_aggregate_to_mapping_data]: key: %s, aggregate: %s, data: %s",
-                    key,
-                    aggregate,
-                    d,
-                )
-                if aggregate == const.MAPPING_CONF_AGGREGATE_AVERAGE:
-                    resultdata[key] = statistics.mean(d)
-                elif aggregate == const.MAPPING_CONF_AGGREGATE_FIRST:
-                    resultdata[key] = d[0]
-                elif aggregate == const.MAPPING_CONF_AGGREGATE_LAST:
-                    resultdata[key] = d[-1]
-                elif aggregate == const.MAPPING_CONF_AGGREGATE_MAXIMUM:
-                    resultdata[key] = max(d)
-                elif aggregate == const.MAPPING_CONF_AGGREGATE_MINIMUM:
-                    resultdata[key] = min(d)
-                elif aggregate == const.MAPPING_CONF_AGGREGATE_MEDIAN:
-                    resultdata[key] = statistics.median(d)
-                elif aggregate == const.MAPPING_CONF_AGGREGATE_SUM:
-                    resultdata[key] = sum(d)
-                elif aggregate == const.MAPPING_CONF_AGGREGATE_RIEMANNSUM:
-                    # apply the riemann sum to the data in d
-                    # Use the trapezoidal rule for Riemann sum approximation
-                    # Assume each value in d is sampled at equal intervals
-                    if len(d) < 2:
-                        resultdata[key] = float(d[0])
-                    else:
-                        # Trapezoidal rule: sum((d[i] + d[i+1]) / 2) * dt
-                        # dt is the interval between samples, assume 1 if not available
-                        dt = 1.0
-                        # If we have timestamps, use them to get dt
-                        if const.RETRIEVED_AT in data_by_sensor:
-                            timestamps = data_by_sensor[const.RETRIEVED_AT]
-                            if len(timestamps) == len(d):
-                                try:
-                                    # Convert all to datetime
-                                    date_format_string = "%Y-%m-%dT%H:%M:%S.%f"
-                                    times = []
-                                    for t in timestamps:
-                                        if isinstance(t, datetime.datetime):
-                                            times.append(t)
-                                        elif isinstance(t, str):
-                                            times.append(
-                                                datetime.datetime.strptime(
-                                                    t, date_format_string
-                                                )
-                                            )
-                                    # Calculate average dt in seconds
-                                    if len(times) > 1:
-                                        dts = [
-                                            (times[i + 1] - times[i]).total_seconds()
-                                            for i in range(len(times) - 1)
-                                        ]
-                                        dt = statistics.mean(dts)
-                                except (ValueError, TypeError) as err:
-                                    _LOGGER.debug(
-                                        "Failed to parse timestamps for Riemann sum: %s",
-                                        err,
-                                    )
-                        # Calculate the sum
-                        riemann_sum = 0.0
-                        for i in range(len(d) - 1):
-                            riemann_sum += ((d[i] + d[i + 1]) / 2) * dt
-                        resultdata[key] = riemann_sum
-            else:
+            if len(d) < 2:
                 if key == const.MAPPING_TEMPERATURE:
                     resultdata[const.MAPPING_MAX_TEMP] = d[0]
                     resultdata[const.MAPPING_MIN_TEMP] = d[0]
-                resultdata[key] = float(d[0])
+                resultdata[key] = d[0]
+                continue
 
-    def _fill_missing_from_last_entry(self, mapping, resultdata):
+            if aggregate == const.MAPPING_CONF_AGGREGATE_AVERAGE:
+                resultdata[key] = statistics.mean(d)
+            elif aggregate == const.MAPPING_CONF_AGGREGATE_FIRST:
+                resultdata[key] = d[0]
+            elif aggregate == const.MAPPING_CONF_AGGREGATE_LAST:
+                resultdata[key] = d[-1]
+            elif aggregate == const.MAPPING_CONF_AGGREGATE_MAXIMUM:
+                resultdata[key] = max(d)
+            elif aggregate == const.MAPPING_CONF_AGGREGATE_MINIMUM:
+                resultdata[key] = min(d)
+            elif aggregate == const.MAPPING_CONF_AGGREGATE_MEDIAN:
+                resultdata[key] = statistics.median(d)
+            elif aggregate == const.MAPPING_CONF_AGGREGATE_SUM:
+                resultdata[key] = sum(d)
+            elif aggregate == const.MAPPING_CONF_AGGREGATE_RIEMANNSUM:
+                # apply the riemann sum to the data in d
+                # Use the trapezoidal rule for Riemann sum approximation
+                # Assume each value in d is sampled at equal intervals
+                if len(d) < 2:
+                    resultdata[key] = float(d[0])
+                else:
+                    # Trapezoidal rule: sum((d[i] + d[i+1]) / 2) * dt
+                    # dt is the interval between samples, assume 1 if not available
+                    dt = 1.0
+                    # If we have timestamps, use them to get dt
+                    if const.RETRIEVED_AT in data_by_sensor:
+                        timestamps = data_by_sensor[const.RETRIEVED_AT]
+                        if len(timestamps) == len(d):
+                            try:
+                                # Convert all to datetime
+                                date_format_string = "%Y-%m-%dT%H:%M:%S.%f"
+                                times = []
+                                for t in timestamps:
+                                    if isinstance(t, datetime.datetime):
+                                        times.append(t)
+                                    elif isinstance(t, str):
+                                        times.append(
+                                            datetime.datetime.strptime(
+                                                t, date_format_string
+                                            )
+                                        )
+                                # Calculate average dt in seconds
+                                if len(times) > 1:
+                                    dts = [
+                                        (times[i + 1] - times[i]).total_seconds()
+                                        for i in range(len(times) - 1)
+                                    ]
+                                    dt = statistics.mean(dts)
+                            except (ValueError, TypeError) as err:
+                                _LOGGER.debug(
+                                    "Failed to parse timestamps for Riemann sum: %s",
+                                    err,
+                                )
+                    # Calculate the sum
+                    riemann_sum = 0.0
+                    for i in range(len(d) - 1):
+                        riemann_sum += ((d[i] + d[i + 1]) / 2) * dt
+                    resultdata[key] = riemann_sum
+
+    def _fill_missing_from_last_entry(self, mapping, resultdata, continuous_updates):
         """Fill missing keys in resultdata from last entry data."""
         last_entry = mapping.get(const.MAPPING_DATA_LAST_ENTRY)
         _LOGGER.debug(
@@ -1297,15 +1285,19 @@ class SmartIrrigationCoordinator(DataUpdateCoordinator):
         for key, val in last_entry.items():
             if key not in resultdata:
                 _LOGGER.debug(
-                    "[async_aggregate_to_mapping_data]: %s is missing from resultdata, adding %s from last entry",
+                    "[async_aggregate_to_mapping_data]: %s is missing from resultdata",
                     key,
-                    val,
                 )
-                if key == const.MAPPING_PRECIPITATION:
+                if key == const.MAPPING_PRECIPITATION and continuous_updates:
                     _LOGGER.debug(
-                        "[async_aggregate_to_mapping_data]: jk using 0 for precip",
+                        "[async_aggregate_to_mapping_data]: defaulting to 0",
                     )
                     val = 0
+                else:
+                    _LOGGER.debug(
+                        "[async_aggregate_to_mapping_data]: adding %s from last entry",
+                        val,
+                    )
                 resultdata[key] = val
                 if key == const.MAPPING_TEMPERATURE:
                     resultdata[const.MAPPING_MAX_TEMP] = val
