@@ -30,7 +30,7 @@ from .const import (
     CONF_DEFAULT_AUTO_UPDATE_DELAY,
     CONF_DEFAULT_AUTO_UPDATE_INTERVAL,
     CONF_DEFAULT_AUTO_UPDATE_SCHEDULE,
-    CONF_DEFAULT_AUTO_UPDATED_ENABLED,
+    CONF_DEFAULT_AUTO_UPDATE_ENABLED,
     CONF_DEFAULT_CALC_TIME,
     CONF_DEFAULT_CLEAR_TIME,
     CONF_DEFAULT_CONTINUOUS_UPDATES,
@@ -168,8 +168,8 @@ class Config:
     units = attr.ib(type=str, default=None)
     use_weather_service = attr.ib(type=bool, default=CONF_DEFAULT_WEATHER_SERVICE)
     weather_service = attr.ib(type=str, default=None)
-    autocalcenabled = attr.ib(type=bool, default=CONF_AUTO_CALC_ENABLED)
-    autoupdateenabled = attr.ib(type=bool, default=CONF_AUTO_UPDATE_ENABLED)
+    autocalcenabled = attr.ib(type=bool, default=CONF_DEFAULT_AUTO_CALC_ENABLED)
+    autoupdateenabled = attr.ib(type=bool, default=CONF_DEFAULT_AUTO_UPDATE_ENABLED)
     autoupdateschedule = attr.ib(type=str, default=CONF_DEFAULT_AUTO_UPDATE_SCHEDULE)
     autoupdatedelay = attr.ib(type=str, default=CONF_DEFAULT_AUTO_UPDATE_DELAY)
     autoupdateinterval = attr.ib(type=str, default=CONF_DEFAULT_AUTO_UPDATE_INTERVAL)
@@ -227,7 +227,7 @@ class SmartIrrigationStorage:
             use_weather_service=CONF_DEFAULT_USE_WEATHER_SERVICE,
             weather_service=CONF_DEFAULT_WEATHER_SERVICE,
             autocalcenabled=CONF_DEFAULT_AUTO_CALC_ENABLED,
-            autoupdateenabled=CONF_DEFAULT_AUTO_UPDATED_ENABLED,
+            autoupdateenabled=CONF_DEFAULT_AUTO_UPDATE_ENABLED,
             autoupdateschedule=CONF_DEFAULT_AUTO_UPDATE_SCHEDULE,
             autoupdatedelay=CONF_DEFAULT_AUTO_UPDATE_DELAY,
             autoupdateinterval=CONF_DEFAULT_AUTO_UPDATE_INTERVAL,
@@ -260,7 +260,7 @@ class SmartIrrigationStorage:
                     CONF_AUTO_CALC_ENABLED, CONF_DEFAULT_AUTO_CALC_ENABLED
                 ),
                 autoupdateenabled=data["config"].get(
-                    CONF_AUTO_UPDATE_ENABLED, CONF_DEFAULT_AUTO_UPDATED_ENABLED
+                    CONF_AUTO_UPDATE_ENABLED, CONF_DEFAULT_AUTO_UPDATE_ENABLED
                 ),
                 autoupdateschedule=data["config"].get(
                     CONF_AUTO_UPDATE_SCHEDULE, CONF_DEFAULT_AUTO_UPDATE_SCHEDULE
